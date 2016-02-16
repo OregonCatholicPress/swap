@@ -22,17 +22,19 @@ class Swap implements SwapInterface
 {
     private $provider;
     private $cache;
+    private $dateCache;
 
-    public function __construct(ProviderInterface $provider, CacheInterface $cache = null)
+    public function __construct(ProviderInterface $provider, CacheInterface $cache = null, CacheDateInterface $dateCache = null)
     {
         $this->provider = $provider;
         $this->cache = $cache;
+        $this->dateCache = $dateCache;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function quote($currencyPair)
+    public function quote($currencyPair, $date = null)
     {
         if (is_string($currencyPair)) {
             $currencyPair = CurrencyPair::createFromString($currencyPair);
@@ -42,12 +44,31 @@ class Swap implements SwapInterface
             );
         }
 
+        //todo: abstract???
+        if (isset($date)) {
+            // date cache check, first cache check 
+            if (null !== $this->dateCache && null !== $rate = $this->dateCache->fetchRate($currencyPair, $date)) {
+                return $rate;
+            }
+
+            $rate = $this->provider->fetchRate($currencyPair, $date);
+
+            //store date and rate
+            if (null !== $this->dateCache && isset($date)) {
+                $this->dateCache->storeRate($currencyPair, $rate, $date);
+            }
+
+            return $rate;
+        }
+
+        // original cache check
         if (null !== $this->cache && null !== $rate = $this->cache->fetchRate($currencyPair)) {
             return $rate;
         }
 
         $rate = $this->provider->fetchRate($currencyPair);
 
+        // original cache set
         if (null !== $this->cache) {
             $this->cache->storeRate($currencyPair, $rate);
         }
